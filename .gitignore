@@ -1,0 +1,6 @@
+*.pyc
+*/dev
+*/plots
+*/data/*
+.vscode
+tmp
