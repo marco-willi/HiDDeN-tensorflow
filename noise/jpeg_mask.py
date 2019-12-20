@@ -12,6 +12,13 @@ class JPEG_Mask(tf.keras.layers.Layer):
         self.dct_transform = dct.DCT2D(n=n)
         self.dct_inverse = dct.InverseDCT2D(n=n)
         self.masks = self._create_masks(n, quality)
+        self.n = n
+    
+    def build(self, input_shape):
+        x_crop, y_crop = self._calc_crop_for_output(input_shape)
+        self.crop = tf.keras.layers.Cropping2D(((0, y_crop), (0, x_crop)))
+        self.padding = tf.keras.layers.ZeroPadding2D(
+            ((0, y_crop), (0, x_crop)))
 
     def call(self, inputs):
 
@@ -19,8 +26,11 @@ class JPEG_Mask(tf.keras.layers.Layer):
 
         n_channels = x.shape[-1]
 
+        # pad if necessary
+        x = self.padding(x)
+
         # DCT transformation
-        x = self._center_img(inputs)
+        x = self._center_img(x)
         x = self.dct_transform(x, self.masks[0:n_channels])
         x = tf.stack(tf.split(x, n_channels, axis=-1), -1)
 
@@ -29,7 +39,27 @@ class JPEG_Mask(tf.keras.layers.Layer):
         x = tf.squeeze(x, -1)
         x = self.dct_inverse(x)
         x = self._de_center_img(x)
+
+        # crop if necessary
+        x = self.crop(x)
+
         return x
+    
+    def _calc_crop_for_output(self, input_shape):
+        """ Calculate how much to crop from output
+            if during the DCT values had to be padded
+        """
+        x_short = input_shape[2] % self.n
+        if x_short > 0:
+            crop_x = self.n - x_short
+        else:
+            crop_x = 0
+        y_short = input_shape[1] % self.n
+        if y_short > 0:
+            crop_y = self.n - y_short
+        else:
+            crop_y = 0
+        return crop_x, crop_y
 
     def _center_img(self, x):
         return tf.cast(x - 128, tf.float32)

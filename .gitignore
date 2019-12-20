@@ -1,6 +1,7 @@
 *.pyc
-*/dev
-*/plots
-*/data/*
+/dev
+/plots
+/data
 .vscode
 tmp
+/experiments

@@ -19,11 +19,13 @@ def plot_examples(n_samples, images):
         index += n_cols
 
 
-def create_summary_writers(logdir):
-    train_writer = tf.summary.create_file_writer(os.path.join(logdir, 'train'))
-    eval_writer = tf.summary.create_file_writer(os.path.join(logdir, 'eval'))
-    test_writer = tf.summary.create_file_writer(os.path.join(logdir, 'eval'))
-    return {'train': train_writer, 'eval': eval_writer, 'test': test_writer}
+def create_summary_writers(path, writers=['train', 'val']):
+    """ Create Different Summary File Writers """
+    out = dict()
+    for writer in writers:
+        out[writer] = tf.summary.create_file_writer(
+            os.path.join(path, writer))
+    return out
 
 
 def create_messages(batch_size, msg_length):
@@ -31,3 +33,8 @@ def create_messages(batch_size, msg_length):
         [batch_size, msg_length], minval=0, maxval=2, dtype=tf.int32)
     messages = tf.cast(messages, dtype=tf.float32)
     return messages
+
+
+def fix_path(path):
+    """ Ensure path is resolved correctly """
+    return os.path.abspath(os.path.expanduser(path))
