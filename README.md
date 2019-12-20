@@ -40,3 +40,6 @@ python -m unittest discover
 - fix crop layer: dont padd with zeroes - verify 
 - verify random seed works as expected
 - investigate low distortion loss while tensorboard shows visual dissimilarity
+- manually investigate input on sample image
+- implement logloss for summaries?
+- log flags / configuration

@@ -7,12 +7,9 @@ class Crop(tf.keras.layers.Layer):
     """
 
     def __init__(self, **kwargs):
-        super(Crop, self).__init__(
-            trainable=False, **kwargs)
+        super(Crop, self).__init__(trainable=False, **kwargs)
 
-    def call(self, inputs, crop_proportion=0.5, seed=None):
-
-        crop_proportion = tf.cast(crop_proportion, tf.float32)
+    def call(self, inputs, crop_proportion=0.5):
 
         if crop_proportion == 1.0:
             return inputs

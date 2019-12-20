@@ -14,8 +14,6 @@ class Cropout(tf.keras.layers.Layer):
 
         inputs, backgrounds = inputs
 
-        crop_proportion = tf.cast(crop_proportion, tf.float32)
-
         if crop_proportion == 1.0:
             return inputs
         if crop_proportion == 0.0:

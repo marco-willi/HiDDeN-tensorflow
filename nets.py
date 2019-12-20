@@ -7,8 +7,11 @@ from absl import flags
 from noise import gaussian, dropout, cropout, crop, jpeg_mask
 
 FLAGS = flags.FLAGS
-#_INITIALIZER_ = FLAGS.cbr_initializer
-_INITIALIZER_ = 'he_normal'
+
+
+def _initializer():
+    return FLAGS.cbr_initializer
+
 
 def transmitter(encoded_image, cover_image, noise_type):
     """ Transmitter with potential noise applied to image """
@@ -64,7 +67,7 @@ def encoder(
             filters=64,
             kernel_size=(3, 3),
             strides=(1, 1),
-            kernel_initializer=_INITIALIZER_,
+            kernel_initializer=_initializer(),
             padding='same')(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.LeakyReLU()(x)
@@ -77,7 +80,7 @@ def encoder(
         filters=64,
         kernel_size=(3, 3),
         strides=(1, 1),
-        kernel_initializer=_INITIALIZER_,
+        kernel_initializer=_initializer(),
         padding='same')(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.LeakyReLU()(x)
@@ -86,7 +89,7 @@ def encoder(
         filters=input_shape[-1],
         kernel_size=(1, 1),
         strides=(1, 1),
-        kernel_initializer=_INITIALIZER_,
+        kernel_initializer=_initializer(),
         padding='valid',
         activation='linear')(x)
 
@@ -103,7 +106,7 @@ def decoder(encoded_image, msg_length, n_convbnrelu_blocks):
             filters=64,
             kernel_size=(3, 3),
             strides=(1, 1),
-            kernel_initializer=_INITIALIZER_,
+            kernel_initializer=_initializer(),
             padding='same')(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.LeakyReLU()(x)
@@ -112,7 +115,7 @@ def decoder(encoded_image, msg_length, n_convbnrelu_blocks):
         filters=msg_length,
         kernel_size=(3, 3),
         strides=(1, 1),
-        kernel_initializer=_INITIALIZER_,
+        kernel_initializer=_initializer(),
         padding='same')(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.LeakyReLU()(x)
@@ -171,7 +174,7 @@ def discriminator(input_shape, n_convbnrelu):
             filters=64,
             kernel_size=(3, 3),
             strides=(1, 1),
-            kernel_initializer=_INITIALIZER_,
+            kernel_initializer=_initializer(),
             padding='same')(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.LeakyReLU()(x)

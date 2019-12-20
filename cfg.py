@@ -18,6 +18,7 @@ flags.DEFINE_string('logdir', './tmp/logs/',
 flags.DEFINE_enum(
     'dataset', None, ['dir', 'mnist', 'cifar10'],
     "Define training dataset source.")
+    
 flags.DEFINE_string('train_dir', None, "Directory with training images.")
 flags.DEFINE_string('val_dir', None, "Directory with validation images.")
 flags.DEFINE_string('test_dir', None, "Directory with test images.")
@@ -76,5 +77,5 @@ flags.DEFINE_integer(
     'n_convbnrelu_discriminator', 3,
     'Number of ConvBNRelu blocks of the discriminator.')
 
-# flags.DEFINE_string(
-#     'cbr_initializer', 'he_normal', "Initializer of ConvBnRelu blocks")
+flags.DEFINE_string(
+    'cbr_initializer', 'he_normal', "Initializer of ConvBnRelu blocks")

@@ -17,8 +17,8 @@ import datasets
 
 FLAGS = flags.FLAGS
 
-exp_id = 'exp1_cd_jpeg_mask'
-FLAGS.noise_type = 'jpeg_mask'
+exp_id = 'exp1_cd_crop'
+FLAGS.noise_type = 'crop'
 
 
 FLAGS.tbdir = os.path.join('./tmp/tensorboard/', exp_id)
@@ -32,8 +32,8 @@ FLAGS.val_dir = 'D:\Kaggle\cats_and_dogs\hidden\\val\\'
 FLAGS.test_dir = 'D:\Kaggle\cats_and_dogs\hidden\\test\\'
 FLAGS.train_crop = [64, 64, 3]
 FLAGS.batch_size = 12
-FLAGS.epochs = 25
-FLAGS.to_yuv = True
+FLAGS.epochs = 50
+FLAGS.to_yuv = False
 FLAGS.loss_weight_distortion = 10
 
 
@@ -70,7 +70,7 @@ def main(argv):
     optimizer_encoder_decoder = tf.keras.optimizers.Adam(1e-3)
     optimizer_discriminator = tf.keras.optimizers.Adam(1e-3)
 
-    # global step
+    # global step / epoch variables
     step = tf.Variable(0, dtype=tf.int64)
     epoch = tf.Variable(0, dtype=tf.int64)
 
