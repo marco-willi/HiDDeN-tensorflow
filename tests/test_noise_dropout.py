@@ -22,19 +22,6 @@ class DropOutTest(tf.test.TestCase):
             self.assertAllEqual(channels[0], channels[1])
             self.assertAllEqual(channels[1], channels[2])
 
-    def testSamplingProportion(self):
-        input_image = tf.ones((1, 1000, 1000, 1))
-        background_image = tf.zeros((1, 1000, 1000, 1))
-        res = self.layer((input_image, background_image), 0.5)
-
-        total_shape = np.prod(res.shape)
-
-        with self.cached_session(use_gpu=False):
-            actual = tf.reduce_sum(res) / (total_shape / 2)
-            actual = actual.numpy()
-            expected = 1.0
-            self.assertAlmostEqual(actual, expected, places=2)
-
     def testMutabilityOnDifferentCalls(self):
         """ Confirm that different invocations of the layer
             lead to different samplings
@@ -47,6 +34,22 @@ class DropOutTest(tf.test.TestCase):
         with self.cached_session(use_gpu=False):
             self.assertNotAllEqual(res1, res2)
 
+    def testMultipleSamplingProportions(self):
+
+        with self.cached_session(use_gpu=False):
+
+            input_image = tf.ones((1, 1000, 1000, 1))
+            background_image = tf.zeros((1, 1000, 1000, 1))
+
+            keep_probs = [0, 0.1, 0.5, 0.9, 1.0]
+
+            for keep_prob in keep_probs:
+                res = self.layer((input_image, background_image), keep_prob)
+                total_shape = np.prod(res.shape)
+                actual = tf.reduce_sum(res) / total_shape
+                actual = actual.numpy()
+                expected = 1.0 * keep_prob
+                self.assertAlmostEqual(actual, expected, places=2)
 
 if __name__ == '__main__':
     tf.test.main(argv=None)

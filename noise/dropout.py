@@ -14,21 +14,28 @@ class Dropout(tf.keras.layers.Layer):
 
         inputs, backgrounds = inputs
 
-        if keep_probability != 0.5:
-            raise NotImplementedError(
-                "Only keep_prob == 0.5 implemented")
+        assert keep_probability >= 0.0, \
+            "keep_probability must not be negative, is: {}".format(
+                keep_probability)
+
+        assert keep_probability <= 1.0, \
+            "keep_probability must be <= 1.0, is: {}".format(
+                keep_probability)
+        
+        drop_probability = 1 - keep_probability
 
         mask2d = tf.random.uniform(
-            inputs.shape[1:3], minval=0, maxval=2, dtype=tf.int32)
+            inputs.shape[1:3], minval=0, maxval=1, dtype=tf.float32)
 
         mask3d = tf.broadcast_to(
             tf.expand_dims(mask2d, -1), shape=inputs.shape[1:])
-        mask3d = tf.cast(mask3d, tf.dtypes.float32)
 
-        negative_mask3d = tf.math.abs(mask3d - 1)
+        keep_mask = tf.math.ceil(
+            tf.clip_by_value(mask3d - drop_probability, 0, 1))
+        drop_mask = tf.math.abs(keep_mask - 1)
 
-        masked_inputs = self.mult_layer([inputs, mask3d])
-        masked_backgrounds = self.mult_layer([backgrounds, negative_mask3d])
+        masked_inputs = self.mult_layer([inputs, keep_mask])
+        masked_backgrounds = self.mult_layer([backgrounds, drop_mask])
 
         combined = tf.math.add(masked_inputs, masked_backgrounds)
 

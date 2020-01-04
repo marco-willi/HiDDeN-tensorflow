@@ -32,6 +32,7 @@ def transform_data(x):
 
 
 class Dataset(object):
+    """ Dataset Abstract Class """
  
     def get_input_shape(self):
         raise NotImplementedError
@@ -153,8 +154,10 @@ class ImageDir(Dataset):
 
     def _transform_data(self, x, to_yuv, is_training):
         x = tf.io.read_file(x)
-        x = tf.io.decode_jpeg(
-            x, channels=3, try_recover_truncated=True)
+        x = tf.io.decode_image(
+            x,
+            channels=3,
+            expand_animations=False)
         x = tf.cast(x, tf.float32)
         x = tf.divide(x, 255.0)
         if to_yuv:

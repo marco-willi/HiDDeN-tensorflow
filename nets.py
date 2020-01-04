@@ -1,5 +1,9 @@
 """
-    Network Architectures
+    Network Architecture
+    - encoder
+    - decoder
+    - transmitter
+    - discriminator
 """
 import tensorflow as tf
 from absl import flags
@@ -9,41 +13,9 @@ from noise import gaussian, dropout, cropout, crop, jpeg_mask
 FLAGS = flags.FLAGS
 
 
-def _initializer():
+def _kernel_initializer():
+    """ Conv2D Kernel initializer """
     return FLAGS.cbr_initializer
-
-
-def transmitter(encoded_image, cover_image, noise_type):
-    """ Transmitter with potential noise applied to image """
-
-    if noise_type == 'identity':
-        x = encoded_image
-
-    elif noise_type == 'gaussian':
-        x = gaussian.GaussianBlurring2D(
-            sigma=0.84,
-            kernel_size=(3, 3),
-            padding='same')(encoded_image)
-
-    elif noise_type == 'dropout':
-        x = dropout.Dropout()((encoded_image, cover_image))
-
-    elif noise_type == 'cropout':
-        x = cropout.Cropout()(
-            (encoded_image, cover_image),
-            crop_proportion=0.5)
-
-    elif noise_type == 'crop':
-        x = crop.Crop()(encoded_image, crop_proportion=0.5)
-
-    elif noise_type == 'jpeg_mask':
-        # TODO: convert to range 0-255
-        x = jpeg_mask.JPEG_Mask(n=8, quality=50)(encoded_image)
-
-    else:
-        raise NotImplementedError(
-            "noise_type {} not implemented".format(noise_type))
-    return x
 
 
 def encoder(
@@ -52,7 +24,7 @@ def encoder(
         input_shape,
         msg_length,
         n_convbnrelu_blocks):
-    """ Create Encoder Net """
+    """ Create Encoder Net  """
 
     # Message Block
     m = tf.keras.layers.RepeatVector(
@@ -67,7 +39,7 @@ def encoder(
             filters=64,
             kernel_size=(3, 3),
             strides=(1, 1),
-            kernel_initializer=_initializer(),
+            kernel_initializer=_kernel_initializer(),
             padding='same')(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.LeakyReLU()(x)
@@ -80,7 +52,7 @@ def encoder(
         filters=64,
         kernel_size=(3, 3),
         strides=(1, 1),
-        kernel_initializer=_initializer(),
+        kernel_initializer=_kernel_initializer(),
         padding='same')(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.LeakyReLU()(x)
@@ -89,11 +61,57 @@ def encoder(
         filters=input_shape[-1],
         kernel_size=(1, 1),
         strides=(1, 1),
-        kernel_initializer=_initializer(),
+        kernel_initializer=_kernel_initializer(),
         padding='valid',
         activation='linear')(x)
 
     return encoded_img
+
+
+def _apply_noise(x, cover_image, noise):
+    """ Apply noise to image """
+
+    if noise == 'identity':
+        pass
+
+    elif noise == 'gaussian':
+        x = gaussian.GaussianBlurring2D(
+            sigma=FLAGS.gaussian_sigma,
+            kernel_size=(FLAGS.gaussian_kernel, FLAGS.gaussian_kernel),
+            padding='same')(x)
+
+    elif noise == 'dropout':
+        x = dropout.Dropout()(
+            (x, cover_image),
+            keep_probability=FLAGS.dropout_p)
+
+    elif noise == 'cropout':
+        x = cropout.Cropout()(
+            (x, cover_image),
+            crop_proportion=FLAGS.cropout_p)
+
+    elif noise == 'crop':
+        x = crop.Crop()(x, crop_proportion=FLAGS.crop_p)
+
+    elif noise == 'jpeg_mask':
+        x = jpeg_mask.JPEG_Mask(n=8, quality=50)(x)
+
+    else:
+        raise NotImplementedError(
+            "noise layer {} not implemented".format(noise))
+
+    return x
+
+
+def transmitter(encoded_image, cover_image, noise_layers):
+    """ Transmitter: potentially noisy transmission of encoded_image """
+
+    x = encoded_image
+
+    for noise in noise_layers:
+        x = _apply_noise(x, cover_image, noise)
+
+    return x
 
 
 def decoder(encoded_image, msg_length, n_convbnrelu_blocks):
@@ -106,7 +124,7 @@ def decoder(encoded_image, msg_length, n_convbnrelu_blocks):
             filters=64,
             kernel_size=(3, 3),
             strides=(1, 1),
-            kernel_initializer=_initializer(),
+            kernel_initializer=_kernel_initializer(),
             padding='same')(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.LeakyReLU()(x)
@@ -115,7 +133,7 @@ def decoder(encoded_image, msg_length, n_convbnrelu_blocks):
         filters=msg_length,
         kernel_size=(3, 3),
         strides=(1, 1),
-        kernel_initializer=_initializer(),
+        kernel_initializer=_kernel_initializer(),
         padding='same')(x)
     x = tf.keras.layers.BatchNormalization()(x)
     x = tf.keras.layers.LeakyReLU()(x)
@@ -128,7 +146,7 @@ def decoder(encoded_image, msg_length, n_convbnrelu_blocks):
 def encoder_decoder(
         input_shape,
         msg_length,
-        noise_type,
+        noise_layers,
         n_convbnrelu_encoder,
         n_convbnrelu_decoder):
     """ EncoderDecoder Net """
@@ -140,10 +158,10 @@ def encoder_decoder(
     # TODO: consider clipping image to valid range
 
     transmitted_encoded_image = transmitter(
-        encoded_image, cover_image, noise_type)
+        encoded_image, cover_image, noise_layers)
 
     transmitted_cover_image = transmitter(
-        cover_image, cover_image, noise_type)
+        cover_image, cover_image, noise_layers)
 
     decoded_message = decoder(
         transmitted_encoded_image, msg_length, n_convbnrelu_decoder)
@@ -174,7 +192,7 @@ def discriminator(input_shape, n_convbnrelu):
             filters=64,
             kernel_size=(3, 3),
             strides=(1, 1),
-            kernel_initializer=_initializer(),
+            kernel_initializer=_kernel_initializer(),
             padding='same')(x)
         x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.LeakyReLU()(x)

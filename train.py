@@ -1,7 +1,6 @@
 """
     HiDDeN - "HiDDeN: Hiding data with deep networks (Zhu et. al, 2018)"
 """
-import os
 import time
 
 import tensorflow as tf
@@ -14,33 +13,10 @@ import utils
 import nets
 import steps
 import datasets
+import metrics
+import losses
 
 FLAGS = flags.FLAGS
-
-exp_id = 'exp1_cd_crop'
-FLAGS.noise_type = 'crop'
-
-
-FLAGS.tbdir = os.path.join('./tmp/tensorboard/', exp_id)
-FLAGS.plotdir = os.path.join('./tmp/plots/', exp_id)
-FLAGS.ckptdir = os.path.join('./tmp/ckpts/', exp_id)
-FLAGS.logdir = os.path.join('./tmp/logs/', exp_id)
-
-FLAGS.dataset = 'dir'
-FLAGS.train_dir = 'D:\Kaggle\cats_and_dogs\hidden\\train\\'
-FLAGS.val_dir = 'D:\Kaggle\cats_and_dogs\hidden\\val\\'
-FLAGS.test_dir = 'D:\Kaggle\cats_and_dogs\hidden\\test\\'
-FLAGS.train_crop = [64, 64, 3]
-FLAGS.batch_size = 12
-FLAGS.epochs = 50
-FLAGS.to_yuv = False
-FLAGS.loss_weight_distortion = 10
-
-
-#FLAGS.dataset = 'cifar10'
-# FLAGS.batch_size = 12
-# FLAGS.epochs = 2
-# FLAGS.to_yuv = False
 
 
 def main(argv):
@@ -59,7 +35,7 @@ def main(argv):
     encoder_decoder = nets.encoder_decoder(
         input_shape=input_shape,
         msg_length=FLAGS.msg_length,
-        noise_type=FLAGS.noise_type,
+        noise_layers=FLAGS.noise_layers,
         n_convbnrelu_encoder=FLAGS.n_convbnrelu_encoder,
         n_convbnrelu_decoder=FLAGS.n_convbnrelu_decoder)
 
@@ -91,6 +67,10 @@ def main(argv):
             ckpt.restore(ckpt_manager.latest_checkpoint)
             logging.info("Loading model from checkpoint: {}".format(
                 ckpt_manager.latest_checkpoint))
+    
+    # Metrics Tracker
+    metrics_train = metrics.MetricsTracker()
+    metrics_val = metrics.MetricsTracker()
 
     while epoch < FLAGS.epochs:
 
@@ -120,26 +100,28 @@ def main(argv):
             is_summary_step = (step.numpy() % FLAGS.summary_freq) == 0
             if is_summary_step:
                 
-                step_losses = steps.calculate_step_losses(
+                step_losses = losses.step_loss(
                     cover_images,
                     messages,
                     encoder_decoder_output=outputs['encoder_decoder'],
                     discriminator_on_cover=outputs['discriminator_on_cover'],
                     discriminator_on_encoded=outputs['discriminator_on_encoded'])
                 
-                step_metrics = steps.calculate_step_metrics(
+                metrics_train.update(
+                    step_losses,
                     messages,
                     encoder_decoder_output=outputs['encoder_decoder'],
                     discriminator_on_cover=outputs['discriminator_on_cover'],
                     discriminator_on_encoded=outputs['discriminator_on_encoded'])
-                
-                step_metrics_losses = {**step_losses, **step_metrics}
+                    
+                metrics_train_results = metrics_train.results()
+                metrics_train.reset()
 
                 with summary_writers['train'].as_default():
-                    for metric_name, metric_value in step_metrics_losses.items():
+                    for _name, _value in metrics_train_results.items():
                         tf.summary.scalar(
-                            metric_name,
-                            metric_value,
+                            _name,
+                            _value,
                             step=step)
 
                     tf.summary.scalar(
@@ -157,19 +139,22 @@ def main(argv):
         # Training Loss
         logging.info("Epoch {} Stats".format(epoch.numpy()))
         logging.info("Training Stats ===========================")
-        for loss_name, loss_value in step_metrics_losses.items():
-            logging.info("{}: {:.4f}".format(loss_name, loss_value))
+        for _name, _value in metrics_train_results.items():
+            logging.info("{}: {:.4f}".format(_name, _value))
         
         # Evaluate
         dataset_val = dataset.create_val_dataset()
 
-        eval_metrics_tracker = tf.metrics.MeanTensor()
-
         for cover_images in dataset_val:
-            messages = tf.random.uniform(
-                [FLAGS.batch_size, FLAGS.msg_length],
-                minval=0, maxval=2, dtype=tf.int32)
-            messages = tf.cast(messages, dtype=tf.float32)
+
+            messages = utils.create_messages(
+                batch_size=cover_images.shape[0],
+                msg_length=FLAGS.msg_length)
+
+            # messages = tf.random.uniform(
+            #     [FLAGS.batch_size, FLAGS.msg_length],
+            #     minval=0, maxval=2, dtype=tf.int32)
+            # messages = tf.cast(messages, dtype=tf.float32)
 
             outputs = steps.train(
                 cover_images=cover_images,
@@ -178,29 +163,28 @@ def main(argv):
                 discriminator=discriminator,
                 training=False)
 
-            losses_val_step = steps.calculate_step_losses(
+            losses_val_step = losses.step_loss(
                 cover_images,
                 messages,
                 encoder_decoder_output=outputs['encoder_decoder'],
                 discriminator_on_cover=outputs['discriminator_on_cover'],
                 discriminator_on_encoded=outputs['discriminator_on_encoded'])
 
-            metrics_val_step = steps.calculate_step_metrics(
+            metrics_val.update(
+                losses_val_step,
                 messages,
                 encoder_decoder_output=outputs['encoder_decoder'],
                 discriminator_on_cover=outputs['discriminator_on_cover'],
                 discriminator_on_encoded=outputs['discriminator_on_encoded'])
+            
+        metrics_val_results = metrics_val.results()
+        metrics_val.reset()
 
-            step_metrics_losses = {**losses_val_step, **metrics_val_step}
-
-            metrics_names = sorted(step_metrics_losses.keys())
-            metric_values = list()
-            for metric in metrics_names:
-                metric_values.append(step_metrics_losses[metric])
-
-            eval_metrics_tracker.update_state(metric_values)
-
-        metrics_results = eval_metrics_tracker.result().numpy()
+        logging.info("Validation Stats ===========================")
+        with summary_writers['val'].as_default():
+            for _name, _value in metrics_val_results.items():
+                tf.summary.scalar(_name, _value, step=step)
+                logging.info("{}: {:.4f}".format(_name, _value))
 
         messages = utils.create_messages(
             batch_size=cover_images.shape[0],
@@ -213,50 +197,21 @@ def main(argv):
         # write example images to Summaries
         with summary_writers['val'].as_default():
 
-            difference_images = tf.math.abs(tf.subtract(
-                cover_images, encoder_decoder_output['encoded_image'])) * 10.0
-
-            images_to_plot = [
-                cover_images,
-                encoder_decoder_output['encoded_image'],
-                difference_images,
-                encoder_decoder_output['transmitted_encoded_image'],
-                encoder_decoder_output['transmitted_cover_image']]
-
-            names_to_plot = [
-                'cover_images',
-                'encoded_images',
-                'difference_images',
-                'transmitted_encoded_images',
-                'transmitted_cover_images']
-
-            descriptions_to_plot = [
-                'Cover Images',
-                'Encoded Images',
-                'Abslute Diff. Coded/Encoded Images (magnified)',
-                'Transmitted Encoded Images',
-                'Transmitted Cover Images']
+            transform_fn = None
 
             if FLAGS.to_yuv:
-                images_to_plot = [
-                    tf.image.yuv_to_rgb(x) for x in images_to_plot]
-
-            for i, name in enumerate(names_to_plot):
-                tf.summary.image(
-                    name=name,
-                    data=images_to_plot[i],
-                    step=step,
-                    max_outputs=6,
-                    description=descriptions_to_plot[i]
-                )
-
-        logging.info("Validation Stats ===========================")
-        with summary_writers['val'].as_default():
-            for m_name, m_value in zip(metrics_names, metrics_results):
-                tf.summary.scalar(m_name, m_value, step=step)
-                logging.info("{}: {:.4f}".format(m_name, m_value))
-
-        eval_metrics_tracker.reset_states()
+                transform_fn = tf.image.yuv_to_rgb
+ 
+            utils.summary_images(
+                cover=cover_images,
+                encoded=encoder_decoder_output[
+                    'encoded_image'],
+                transmitted_encoded=encoder_decoder_output[
+                    'transmitted_encoded_image'],
+                transmitted_cover=encoder_decoder_output[
+                    'transmitted_cover_image'],
+                step=step,
+                transform_fn=transform_fn)
 
         epoch.assign_add(1)
 

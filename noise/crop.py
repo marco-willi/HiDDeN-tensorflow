@@ -2,8 +2,8 @@ import tensorflow as tf
 
 
 class Crop(tf.keras.layers.Layer):
-    """ Crop a random Square of size crop_proportion from inputs and zero padd
-        to original size. Applies same crop over a batch of inputs.
+    """ Crop a random Square of size crop_proportion from inputs.
+        Applies same crop over a batch of inputs.
     """
 
     def __init__(self, **kwargs):
@@ -18,7 +18,6 @@ class Crop(tf.keras.layers.Layer):
 
         x_dim = inputs.shape[1]
         y_dim = inputs.shape[2]
-        c_dim = inputs.shape[3]
 
         crop_width = tf.cast(
             tf.math.sqrt((x_dim * y_dim * crop_proportion)), tf.int32)
@@ -36,16 +35,12 @@ class Crop(tf.keras.layers.Layer):
             maxval=max_y_coord,
             dtype=tf.int32)
 
-        crop_mask = tf.ones((crop_width, crop_width, c_dim))
-
-        inputs_mask = tf.image.pad_to_bounding_box(
-            crop_mask,
+        inputs_cropped = tf.image.crop_to_bounding_box(
+            inputs,
             y_start,
             x_start,
-            y_dim,
-            x_dim
+            crop_width,
+            crop_width
         )
 
-        inputs_masked = tf.multiply(inputs, inputs_mask)
-
-        return inputs_masked
+        return inputs_cropped

@@ -1,20 +1,25 @@
-""" Define Loss and Metric Functions"""
+""" Loss Calculations
+    Output: mean per sample loss
+"""
+from absl import flags
+
 import tensorflow as tf
 
-
-def distortion_loss(y, y_hat):
-    """ Image Distortion Loss - L2 Norm """
-    return tf.reduce_mean(tf.math.pow(y - y_hat, 2))
+FLAGS = flags.FLAGS
 
 
-def recovery_loss(y, y_hat):
-    """ Message Recovery Loss - L2 Norm """
-    per_message = tf.reduce_mean(tf.math.pow(y - y_hat, 2), axis=0)
-    return tf.reduce_mean(per_message)
+def image_distortion_loss(y, y_hat):
+    """ MSE (per image pair) """
+    return tf.reduce_mean(tf.math.pow(y - y_hat, 2), axis=[1, 2, 3])
 
 
-def discriminator_loss(logits, y_expected):
-    """ Discriminator Loss """
+def message_distortion_loss(y, y_hat):
+    """ MSE (per image/message)"""
+    return tf.reduce_mean(tf.math.pow(y - y_hat, 2), axis=[1])
+
+
+def classification_loss(logits, y_expected):
+    """ Classification loss given static y_expected """
     y_true = tf.fill(logits.shape, y_expected)
     return tf.keras.losses.binary_crossentropy(
         y_true=y_true,
@@ -22,11 +27,48 @@ def discriminator_loss(logits, y_expected):
         from_logits=True)
 
 
-def binarize(x):
-    return tf.math.round(
-        tf.clip_by_value(x, clip_value_min=0, clip_value_max=1))
+@tf.function
+def step_loss(
+        cover_images,
+        messages,
+        encoder_decoder_output,
+        discriminator_on_cover,
+        discriminator_on_encoded):
+    """ Calculate Loss for one Step """
 
+    losses = dict()
 
-def decoding_error_rate(y, y_hat):
-    """ Mean Error Rate across Batch """
-    return tf.reduce_mean(tf.math.abs(y - binarize(y_hat)), axis=0)
+    losses['image_distortion'] = image_distortion_loss(
+        cover_images, encoder_decoder_output['encoded_image'])
+
+    # Recovery loss: difference encoded/decoded messages
+    losses['message_distortion'] = message_distortion_loss(
+        messages, encoder_decoder_output['decoded_message'])
+
+    losses['adversarial'] = classification_loss(
+        logits=discriminator_on_encoded,
+        y_expected=0.0)
+
+    # Discriminator loss: how well to recognize cover images
+    losses['discriminator_cover'] = classification_loss(
+        logits=discriminator_on_cover,
+        y_expected=0.0)
+
+    # Discriminator Loss: how well to recognize encoded images
+    losses['discriminator_encoded'] = classification_loss(
+        logits=discriminator_on_encoded,
+        y_expected=1.0)
+
+    # total loss discriminator
+    losses['discriminator_total'] = tf.add(
+        losses['discriminator_cover'],
+        losses['discriminator_encoded'])
+
+    # total loss encoder decoder
+    loss_encoder_decoder_total = \
+        FLAGS.loss_weight_recovery * losses['message_distortion'] + \
+        FLAGS.loss_weight_distortion * losses['image_distortion'] + \
+        FLAGS.loss_weight_adversarial * losses['adversarial']
+    losses['encoder_decoder_total'] = loss_encoder_decoder_total
+
+    return losses

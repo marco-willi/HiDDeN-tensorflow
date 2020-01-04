@@ -3,5 +3,6 @@
 /plots
 /data
 .vscode
-tmp
+tmp_*
 /experiments
+TODO.md

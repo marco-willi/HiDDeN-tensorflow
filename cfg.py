@@ -31,13 +31,31 @@ flags.DEFINE_bool('to_yuv', False,
  'Wheter to convert input images to YUV -- strongly \
   recommended for RGB images and JPEG noise')
 
-flags.DEFINE_string('noise_type', 'identity',
-                    'Noise layer to apply.')
-
 flags.DEFINE_multi_enum(
     'noise_layers', 'identity',
     ['identity', 'gaussian', 'crop', 'cropout', 'jpeg_mask', 'dropout'],
-    'A list of noise layers to apply.')
+    'A sequence of noise layers to apply.')
+
+flags.DEFINE_float(
+    'crop_p', 0.5,
+    "Crop proportion for crop layer. Keeps that proportion from encoded image and replaces rest from cover image.")
+
+flags.DEFINE_float(
+    'cropout_p', 0.5,
+    "Crop proportion for cropout layer. Keeps that proportion from encoded image and replaces rest from cover image.")
+
+flags.DEFINE_float(
+    'dropout_p', 0.5,
+    "Keep probability for dropout layer. Keeps that proportion from encoded image and replaces rest from cover image.")
+
+flags.DEFINE_float(
+    'gaussian_sigma', 0.84,
+    "Sigma for Gaussian layer.")
+
+flags.DEFINE_integer(
+    'gaussian_kernel', 3,
+    "Kernel size for Gaussian layer.")
+
 
 # Logging Options
 flags.DEFINE_integer('summary_freq', 100, 'Write summaries every Nth step.')
