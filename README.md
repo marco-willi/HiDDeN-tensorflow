@@ -14,7 +14,7 @@ pip install -r requirements.txt
 ## Features
 
 - Noise Layers: identity, gaussian, dropout, crop, cropout, jpeg-mask
-- configurable via cfg.py and cmd arguments.
+- configurable via [cfg.py](cfg.py) and cmd arguments.
 - apply on CIFAR10, MNIST or any images stored in a directory
 
 

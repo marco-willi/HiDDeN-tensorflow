@@ -178,9 +178,6 @@ def encoder_decoder(
     return model
 
 
-####################
-# Discriminator
-
 def discriminator(input_shape, n_convbnrelu):
     """ Discriminator Net: Identify Encoded Images """
 
